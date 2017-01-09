@@ -13,13 +13,21 @@ C:\InfaEc2Scripts\generateTnsOra.ps1 $env:DB_SERVICENAME $env:DB_ADDRESS $env:DB
 
 $env:DB_ADDRESS=$env:DB_ADDRESS+":"+$env:DB_PORT
 
+$env:METADATA_ACCESS_STRING="'jdbc:informatica:oracle://"+$env:DB_ADDRESS+";Servicename="+$env:DB_SERVICENAME+"'"
+
 $env:MRS_DB_CUSTOM_STRING="jdbc:informatica:oracle://"+$env:DB_ADDRESS+";ServiceName="+$env:DB_SERVICENAME+";MaxPooledStatements=20;CatalogOptions=0;BatchPerformanceWorkaround=true"
 
-$env:MRS_NAME="ModelRepoistoryService"
+$env:STAGE_CONN_NAME="STAGE"
+
+$env:MRS_NAME="ModelRepositoryService"
 
 $env:DIS_NAME="DataIntegrationService"
 
 $env:CMS_NAME="ContentManagementService"
+
+$env:DISHTTPPORT="8095"
+
+$env:CMSHTTPPORT="8105"
 
 C:\InfaEc2Scripts\modifyDBUsers.ps1 $env:DB_ADDRESS $env:DB_SERVICENAME $env:DB_UNAME $dbpass 2>  C:\InfaServiceLog.log
 
@@ -77,23 +85,23 @@ $PROPERTYFILE="C:\infainstaller\SilentInput.properties"
 `
 -replace '^DB_PASSWD=.*$',"DB_PASSWD=$dbpass" `
 `
--replace '^CREATE_SERVICES=.*$',"CREATE_SERVICES=1" ` 
+-replace '^CREATE_SERVICES=.*$',"CREATE_SERVICES=0" `
 `
--replace '^MRS_DB_TYPE=.*$',"MRS_DB_TYPE=Oracle" ` 
+-replace '^MRS_DB_TYPE=.*$',"MRS_DB_TYPE=Oracle" `
 `
--replace '^MRS_DB_UNAME=.*$',"MRS_DB_UNAME=dqmrsdb" ` 
+-replace '^MRS_DB_UNAME=.*$',"MRS_DB_UNAME=dqmrsdb" `
 `
--replace '^MRS_DB_PASSWD=.*$',"MRS_DB_PASSWD=dqmrsdb" ` 
+-replace '^MRS_DB_PASSWD=.*$',"MRS_DB_PASSWD=dqmrsdb" `
 `
--replace '^MRS_DB_CUSTOM_STRING_SELECTION=.*$',"MRS_DB_CUSTOM_STRING_SELECTION=1" ` 
+-replace '^MRS_DB_CUSTOM_STRING_SELECTION=.*$',"MRS_DB_CUSTOM_STRING_SELECTION=1" `
 `
--replace '^MRS_DB_CUSTOM_STRING=.*$',"MRS_DB_CUSTOM_STRING=$env:MRS_DB_CUSTOM_STRING" ` 
+-replace '^MRS_DB_CUSTOM_STRING=.*$',"MRS_DB_CUSTOM_STRING=$env:MRS_DB_CUSTOM_STRING" `
 `
--replace '^MRS_SERVICE_NAME=.*$',"MRS_SERVICE_NAME=$env:MRS_NAME" ` 
+-replace '^MRS_SERVICE_NAME=.*$',"MRS_SERVICE_NAME=$env:MRS_NAME" `
 `
--replace '^DIS_SERVICE_NAME=.*$',"DIS_SERVICE_NAME=$env:DIS_NAME" ` 
+-replace '^DIS_SERVICE_NAME=.*$',"DIS_SERVICE_NAME=$env:DIS_NAME" `
 `
--replace '^DIS_PROTOCOL_TYPE=.*$',"DIS_PROTOCOL_TYPE=http" ` 
+-replace '^DIS_PROTOCOL_TYPE=.*$',"DIS_PROTOCOL_TYPE=http" `
 `
 -replace '^DIS_HTTP_PORT=.*$',"DIS_HTTP_PORT=8095" ` 
 
@@ -103,24 +111,37 @@ cd C:\infainstaller
 C:\infainstaller\silentInstall.bat | Out-Null
 
 function createDQServices() {
-    #create STAGE connection using stage db user
-    ($out = C:\Informatica\10.1.1\isp\bin\infacmd createConnection -dn $env:DOMAIN_NAME -un $env:DOMAIN_USER -pd $domainpass -cn STAGE -cid STAGE -ct Oracle -cun dqcmsdb -cpd dqcmsdb -o CodePage='UTF-8' DataAccessConnectString='$env:DB_SERVICENAME' MetadataAccessConnectString='"$env:METADATA_ACCESS_STRING'" ) | Out-Null
-    
-    $code = $LASTEXITCODE
-    
-    ac C:\InfaServiceLog.log $out 
-    
-    #create CMS service																																			  
-	($out = C:\Informatica\10.1.1\isp\bin\infacmd cms createService -dn $env:DOMAIN_NAME -un $env:DOMAIN_USER -pd $domainpass -sn $env:CMS_NAME -ds $env:DIS_NAME -rs $env:MRS_NAME -rsu $env:USERNAME -rsp $domainpass -rssd Native -rdl STAGE -HttpPort 8105 ) | Out-Null
 
-	$code = $code -bor $LASTEXITCODE
-	
+    ac  C:\InfaServiceLog.log "Create STAGE connection"
+    ($out = C:\Informatica\10.1.1\isp\bin\infacmd createConnection -dn $env:DOMAIN_NAME -un $env:DOMAIN_USER -pd $domainpass -cn $env:STAGE_CONN_NAME -cid $env:STAGE_CONN_NAME -ct Oracle -cun dqcmsdb -cpd dqcmsdb -o CodePage='UTF-8' DataAccessConnectString=''$env:DB_SERVICENAME'' MetadataAccessConnectString='"'$env:METADATA_ACCESS_STRING''"" ) | Out-Null
+    ac C:\InfaServiceLog.log $out
+
+    ac  C:\InfaServiceLog.log "Create MRS"
+    ($out = C:\Informatica\10.1.1\isp\bin\infacmd mrs createService -dn $env:DOMAIN_NAME -nn $env:NODE_NAME -un $env:DOMAIN_USER -pd $domainpass -sn $env:MRS_NAME -du dqmrsdb -dp dqmrsdb -dl $env:MRS_DB_CUSTOM_STRING -dt Oracle ) | Out-Null
+    ac C:\InfaServiceLog.log $out
+
+    ac  C:\InfaServiceLog.log "Create DIS"
+    ($out = C:\Informatica\10.1.1\isp\bin\infacmd dis createService -dn $env:DOMAIN_NAME -nn $env:NODE_NAME -un $env:DOMAIN_USER -pd $domainpass -sn $env:DIS_NAME -rs $env:MRS_NAME -rsun $env:DOMAIN_USER -rspd $domainpass -HttpPort $env:DISHTTPPORT ) | Out-Null
+    ac C:\InfaServiceLog.log $out
+
+    ac  C:\InfaServiceLog.log "Create CMS"
+    ($out = C:\Informatica\10.1.1\isp\bin\infacmd cms createService -dn $env:DOMAIN_NAME -nn $env:NODE_NAME -un $env:DOMAIN_USER -pd $domainpass -sn $env:CMS_NAME -ds $env:DIS_NAME -rs $env:MRS_NAME -rsu $env:USERNAME -rsp $domainpass -rdl STAGE -HttpPort $env:CMSHTTPPORT ) | Out-Null
 	ac C:\InfaServiceLog.log $out
 
-    exit $code
+    if ($env:ADD_LICENSE_CONDITION -eq 1) {
+
+        ac  C:\InfaServiceLog.log "Creating License"		
+		($out = C:\Informatica\10.1.1\isp\bin\infacmd addlicense -dn $env:DOMAIN_NAME -un $env:DOMAIN_USER -pd $domainpass -ln License -lf C:\Informatica\10.1.1\License.key ) | Out-Null 
+        ac C:\InfaServiceLog.log $out
+
+        ac  C:\InfaServiceLog.log "Assigning License"
+        ($out = C:\Informatica\10.1.1\isp\bin\infacmd assignLicense -dn $env:DOMAIN_NAME -un $env:DOMAIN_USER -pd $domainpass -ln License -sn $env:MRS_NAME $env:DIS_NAME $env:CMS_NAME ) | Out-Null 
+        ac C:\InfaServiceLog.log $out
+        
+        ac  C:\InfaServiceLog.log "Removing License key file"
+		rm  C:\Informatica\10.1.1\License.key
+		ac C:\InfaServiceLog.log $out
+	}
 }
 
-if ($env:JOIN_DOMAIN -eq 0 ) {
-        ac  C:\InfaServiceLog.log "Creating Data Quality Services"
-        createDQServices  
-}
+createDQServices
