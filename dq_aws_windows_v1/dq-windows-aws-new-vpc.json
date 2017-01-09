@@ -276,7 +276,7 @@
 				"INFORMATICADQWINHVM": "TBD"
 			},
 			"ap-south-1": {
-				"INFORMATICADQWINHVM": "TBD"
+				"INFORMATICADQWINHVM": "ami-7c4c3a13"
 			},
 			"ap-southeast-1": {
 				"INFORMATICADQWINHVM": "TBD"
@@ -294,10 +294,10 @@
 				"INFORMATICADQWINHVM": "TBD"
 			},
 			"us-east-1": {
-				"INFORMATICADQWINHVM": "ami-c91ffadf"
+				"INFORMATICADQWINHVM": "ami-34f21422"
 			},
 			"us-east-2": {
-				"INFORMATICADQWINHVM": "ami-6fe9b30a"
+				"INFORMATICADQWINHVM": "ami-17614472"
 			},
 			"us-west-1": {
 				"INFORMATICADQWINHVM": "TBD"
