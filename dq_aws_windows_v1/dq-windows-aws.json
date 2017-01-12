@@ -1,0 +1,1105 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "AWS Cloud Formation Template for deployment of Informatica Data Quality Version 10.1.1 on a VPC infrastructure. Informatica Data Quality is deployed on Windows Server 2012 R2. Amazon RDS instance in a private subnet is used as the repository for Informatica Domain Metadata. **WARNING** This template creates Amazon EC2 instance and related resources. You will be billed for the AWS resources used if you create a stack from this template.",
+	"Metadata": {
+		"AWS::CloudFormation::Interface": {
+			"ParameterGroups": [
+				{
+					"Label": {
+						"default": "Network Configuration"
+					},
+					"Parameters": [
+						"AvailabilityZones",
+						"VPCCIDR",
+						"PrivateSubnet1CIDR",
+						"PrivateSubnet2CIDR",
+						"PublicSubnet1CIDR",
+						"PublicSubnet2CIDR",
+						"RemoteAccessCIDR"
+					]
+				},
+				{
+					"Label": {
+						"default": "Amazon EC2 Configuration"
+					},
+					"Parameters": [
+						"KeyPairName",
+						"DataQualityInstanceType",
+						"EnableEIP"
+					]
+				},
+				{
+					"Label": {
+						"default": "Amazon RDS Configuration"
+					},
+					"Parameters": [
+						"DatabaseType",
+						"RDSDatabaseName",
+						"DatabaseUsername",
+						"DatabasePassword"
+					]
+				},
+				{
+					"Label": {
+						"default": "Database User Creation for Model Repository Service and Reference Data"
+					},
+					"Parameters": [
+						"MRSDBUsername",
+						"MRSDBPassword",
+						"RefDataDBUsername",
+						"RefDataDBPassword"
+					]
+				},
+				{
+					"Label": {
+						"default": "Informatica Domain Configuration"
+					},
+					"Parameters": [
+						"InformaticaDomainName",
+						"InformaticaNodeName",
+						"InformaticaDomainUsername",
+						"InformaticaDomainPassword",
+						"EncryptionKeyPhrase",
+						"LicenseKey"
+					]
+				}
+			],
+			"ParameterLabels": {
+				"AvailabilityZones": {
+					"default": "Availability Zones"
+				},
+				"DatabasePassword": {
+					"default": "Database Password"
+				},
+				"RDSDatabaseName": {
+					"default": "Database Name"
+				},
+				"DatabaseType": {
+					"default": "Database Type"
+				},
+				"DatabaseUsername": {
+					"default": "Database Username"
+				},
+				"EncryptionKeyPhrase": {
+					"default": "Encryption Key Phrase"
+				},
+				"InformaticaDomainName": {
+					"default": "Informatica Domain Name"
+				},
+				"InformaticaNodeName": {
+					"default": "Informatica Node Prefix"
+				},
+				"InformaticaDomainUsername": {
+					"default": "Informatica Administrator Username"
+				},
+				"InformaticaDomainPassword": {
+					"default": "Informatica Administrator Password"
+				},
+				"KeyPairName": {
+					"default": "Key Pair Name"
+				},
+				"DataQualityInstanceType": {
+					"default": "Informatica Data Quality Domain Instance Type"
+				},
+				"EnableEIP": {
+					"default": "Enable Elastic IP Addressing"
+				},
+				"PrivateSubnet1CIDR": {
+					"default": "Private Subnet 1 CIDR"
+				},
+				"PrivateSubnet2CIDR": {
+					"default": "Private Subnet 2 CIDR"
+				},
+				"PublicSubnet1CIDR": {
+					"default": "Public Subnet 1 CIDR"
+				},
+				"PublicSubnet2CIDR": {
+					"default": "Public Subnet 2 CIDR"
+				},
+				"RemoteAccessCIDR": {
+					"default": "Allowed Remote Access CIDR"
+				},
+				"VPCCIDR": {
+					"default": "VPC CIDR"
+				},
+				"LicenseKey": {
+					"default": "Informatica License Key"
+				},
+				"MRSDBUsername": {
+					"default": "Model Repository Service Database Username"
+				},
+				"MRSDBPassword": {
+					"default": "Model Repository Service Database Password"
+				},
+				"RefDataDBUsername": {
+					"default": "Reference Data Database Username"
+				},
+				"RefDataDBPassword": {
+					"default": "Reference Data Database Password"
+				}
+			}
+		}
+	},
+	"Parameters": {
+		"AvailabilityZones": {
+			"Description": "List of Availability Zones to use for the subnets in the VPC. Note: The logical order is preserved and only 2 AZs are used for this deployment",
+			"Type": "List<AWS::EC2::AvailabilityZone::Name>"
+		},
+		"DatabasePassword": {
+			"Description": "Password for the Amazon RDS database account",
+			"MaxLength": "30",
+			"MinLength": "8",
+			"NoEcho": "true",
+			"Type": "String"
+		},
+		"DatabaseType": {
+			"AllowedValues": [
+				"Oracle-License-Included",
+				"Oracle-Bring-Your-Own-License"
+			],
+			"Default": "Oracle-License-Included",
+			"Description": "The type of database to use in Amazon RDS. Currently, you can only use Oracle",
+			"Type": "String"
+		},
+		"DatabaseUsername": {
+			"Description": "Username for the Amazon RDS database account",
+			"MaxLength": "30",
+			"MinLength": "2",
+			"Type": "String"
+		},
+		"EncryptionKeyPhrase": {
+			"AllowedPattern": "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=\\S+$).{8,}$",
+			"ConstraintDescription": "It should be 8 to 20 characters long, at least one uppercase letter at least one lowercase letter-at least one number Does not contain spaces",
+			"Description": "The text string used as the base word from which to generate an encryption key for the Informatica domain",
+			"MaxLength": "32",
+			"MinLength": "8",
+			"NoEcho": "true",
+			"Type": "String"
+		},
+		"InformaticaDomainName": {
+			"Description": "Name for the Informatica Domain",
+			"Type": "String",
+			"Default": "InfaDomain",
+			"MinLength": "4",
+			"MaxLength": "20"
+		},
+		"InformaticaNodeName": {
+			"Description": "Prefix for the Nodes in Informatica Domain. Node number will be the suffix for the nodes. Eg InfaNode1, InfaNode2",
+			"Type": "String",
+			"Default": "Infa",
+			"MinLength": "2",
+			"MaxLength": "20"
+		},
+		"InformaticaDomainUsername": {
+			"Description": "Username for the Informatica Domain",
+			"Default": "Administrator",
+			"MaxLength": "32",
+			"MinLength": "8",
+			"Type": "String"
+		},
+		"InformaticaDomainPassword": {
+			"Description": "Password for the Informatica Domain",
+			"MaxLength": "32",
+			"MinLength": "8",
+			"NoEcho": "true",
+			"Type": "String"
+		},
+		"DataQualityInstanceType": {
+			"AllowedValues": [
+				"c4.xlarge",
+				"c4.2xlarge",
+				"c4.4xlarge",
+				"c4.8xlarge",
+				"r3.large",
+				"r3.xlarge",
+				"r3.2xlarge",
+				"r3.4xlarge",
+				"r3.8xlarge"
+			],
+			"Default": "c4.2xlarge",
+			"Description": "Instance Type for Informatica Domain. Default is c4.2xlarge",
+			"Type": "String"
+		},
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair to enable external access to the Informatica Domain",
+			"Type": "AWS::EC2::KeyPair::KeyName"
+		},
+		"PrivateSubnet1CIDR": {
+			"AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+			"ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28",
+			"Default": "10.0.0.0/19",
+			"Description": "CIDR block for private subnet 1 located in Availability Zone 1",
+			"Type": "String"
+		},
+		"PrivateSubnet2CIDR": {
+			"AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+			"ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28",
+			"Default": "10.0.32.0/19",
+			"Description": "CIDR block for private subnet 2 located in Availability Zone 2",
+			"Type": "String"
+		},
+		"PublicSubnet1CIDR": {
+			"AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+			"ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28",
+			"Default": "10.0.128.0/20",
+			"Description": "CIDR Block for the public subnet 1 located in Availability Zone 1",
+			"Type": "String"
+		},
+		"PublicSubnet2CIDR": {
+			"AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+			"ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28",
+			"Default": "10.0.144.0/20",
+			"Description": "CIDR Block for the public subnet 2 located in Availability Zone 2",
+			"Type": "String"
+		},
+		"RemoteAccessCIDR": {
+			"AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/([0-9]|[1-2][0-9]|3[0-2]))$",
+			"ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/x",
+			"Description": "Allowed CIDR block for external access to the Informatica Domain",
+			"Type": "String"
+		},
+		"VPCCIDR": {
+			"AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+			"ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28",
+			"Default": "10.0.0.0/16",
+			"Description": "CIDR Block for the VPC",
+			"Type": "String"
+		},
+		"LicenseKey": {
+			"Description": "*Optional Argument*. Provide a PUBLIC S3 link for the License Key file. Leave blank to go ahead without the Licence Key",
+			"Type": "String",
+			"Default": ""
+		},
+		"RDSDatabaseName": {
+			"Description": "Database Name for RDS Instance",
+			"Type": "String",
+			"Default": "INFADQ",
+			"MinLength": "2",
+			"MaxLength": "8"
+		},
+		"EnableEIP": {
+			"Description": "Assign Elastic IPs to Instances. Default value is Yes",
+			"Type": "String",
+			"AllowedValues": [
+				"Yes",
+				"No"
+			],
+			"Default": "Yes"
+		},
+		"MRSDBUsername": {
+			"Description": "Username for the Model Repository Service database account",
+			"MaxLength": "30",
+			"MinLength": "2",
+			"Type": "String"
+		},
+		"RefDataDBUsername": {
+			"Description": "Username for the Reference Data database account",
+			"MaxLength": "30",
+			"MinLength": "2",
+			"Type": "String"
+		},
+		"MRSDBPassword": {
+			"Description": "Password for the Model Repository Service database account",
+			"MaxLength": "30",
+			"MinLength": "8",
+			"NoEcho": "true",
+			"Type": "String"
+		},
+		"RefDataDBPassword": {
+			"Description": "Password for the Reference Data database account",
+			"MaxLength": "30",
+			"MinLength": "8",
+			"NoEcho": "true",
+			"Type": "String"
+		}
+	},
+	"Mappings": {
+		"AWSAMIRegionMap": {
+			"AMI": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"ap-northeast-1": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"ap-northeast-2": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"ap-south-1": {
+				"INFORMATICADQWINHVM": "ami-9fa1d7f0"
+			},
+			"ap-southeast-1": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"ap-southeast-2": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"eu-central-1": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"eu-west-1": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"sa-east-1": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"us-east-1": {
+				"INFORMATICADQWINHVM": "ami-66d13270"
+			},
+			"us-east-2": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"us-west-1": {
+				"INFORMATICADQWINHVM": "TBD"
+			},
+			"us-west-2": {
+				"INFORMATICADQWINHVM": "TBD"
+			}
+		},
+		"Config": {
+			"Settings": {
+				"DatabaseSize": "db.t2.large",
+				"GridName": "InfaDefaultGrid"
+			},
+			"Oracle-License-Included": {
+				"Engine": "oracle-se1",
+				"DB": "Oracle",
+				"LicenseModel": "license-included",
+				"AllocatedStorage": "50",
+				"Port": 1521
+			},
+			"Oracle-Bring-Your-Own-License": {
+				"Engine": "oracle-se1",
+				"DB": "Oracle",
+				"LicenseModel": "bring-your-own-license",
+				"AllocatedStorage": "50",
+				"Port": 1521
+			}
+		}
+	},
+	"Conditions": {
+		"EnableEIPCondition": {
+			"Fn::Equals": [
+				{
+					"Ref": "EnableEIP"
+				},
+				"Yes"
+			]
+		},
+		"AddLicenseCondition": {
+			"Fn::Not": [
+				{
+					"Fn::Equals": [
+						{
+							"Ref": "LicenseKey"
+						},
+						""
+					]
+				}
+			]
+		}
+	},
+	"Resources": {
+		"VPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"CidrBlock": {
+					"Ref": "VPCCIDR"
+				},
+				"EnableDnsSupport": "true",
+				"EnableDnsHostnames": "true",
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "DQ-VPC"
+					},
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					}
+				]
+			}
+		},
+		"InternetGateway": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Properties": {
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "DQ-IGW"
+					},
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					}
+				]
+			}
+		},
+		"VPCGatewayAttachment": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"InternetGatewayId": {
+					"Ref": "InternetGateway"
+				}
+			}
+		},
+		"DataTierSubnet1": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"CidrBlock": {
+					"Ref": "PrivateSubnet1CIDR"
+				},
+				"AvailabilityZone": {
+					"Fn::Select": [
+						"0",
+						{
+							"Ref": "AvailabilityZones"
+						}
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "DQ DataTier1 Private subnet 1"
+					},
+					{
+						"Key": "Network",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"DataTierSubnet2": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"CidrBlock": {
+					"Ref": "PrivateSubnet2CIDR"
+				},
+				"AvailabilityZone": {
+					"Fn::Select": [
+						"1",
+						{
+							"Ref": "AvailabilityZones"
+						}
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "DQ DataTier2 Private subnet 2"
+					},
+					{
+						"Key": "Network",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"PublicSubnet1": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"CidrBlock": {
+					"Ref": "PublicSubnet1CIDR"
+				},
+				"AvailabilityZone": {
+					"Fn::Select": [
+						"0",
+						{
+							"Ref": "AvailabilityZones"
+						}
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "DQ Public subnet 1"
+					},
+					{
+						"Key": "Network",
+						"Value": "Public"
+					}
+				],
+				"MapPublicIpOnLaunch": true
+			}
+		},
+		"PublicSubnet2": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"CidrBlock": {
+					"Ref": "PublicSubnet2CIDR"
+				},
+				"AvailabilityZone": {
+					"Fn::Select": [
+						"1",
+						{
+							"Ref": "AvailabilityZones"
+						}
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "DQ Public subnet 2"
+					},
+					{
+						"Key": "Network",
+						"Value": "Public"
+					}
+				],
+				"MapPublicIpOnLaunch": true
+			}
+		},
+		"PublicSubnetRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "Public Subnets"
+					},
+					{
+						"Key": "Network",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"PublicSubnetRoute": {
+			"DependsOn": "VPCGatewayAttachment",
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "PublicSubnetRouteTable"
+				},
+				"DestinationCidrBlock": "0.0.0.0/0",
+				"GatewayId": {
+					"Ref": "InternetGateway"
+				}
+			}
+		},
+		"PublicSubnet1RouteTableAssociation": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PublicSubnet1"
+				},
+				"RouteTableId": {
+					"Ref": "PublicSubnetRouteTable"
+				}
+			}
+		},
+		"PublicSubnet2RouteTableAssociation": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PublicSubnet2"
+				},
+				"RouteTableId": {
+					"Ref": "PublicSubnetRouteTable"
+				}
+			}
+		},
+		"DBSubnetGroup": {
+			"Type": "AWS::RDS::DBSubnetGroup",
+			"Properties": {
+				"DBSubnetGroupDescription": "Subnet Group for Informatica DQ RDS Database",
+				"SubnetIds": [
+					{
+						"Ref": "DataTierSubnet1"
+					},
+					{
+						"Ref": "DataTierSubnet2"
+					}
+				],
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "RDSDbSubnetGroup"
+					}
+				]
+			}
+		},
+		"DBSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Informatica DQ RDS Database Security Group",
+				"SecurityGroupIngress": [
+					{
+						"IpProtocol": "tcp",
+						"FromPort": {
+							"Fn::FindInMap": [
+								"Config",
+								{
+									"Ref": "DatabaseType"
+								},
+								"Port"
+							]
+						},
+						"ToPort": {
+							"Fn::FindInMap": [
+								"Config",
+								{
+									"Ref": "DatabaseType"
+								},
+								"Port"
+							]
+						},
+						"SourceSecurityGroupId": {
+							"Ref": "InstanceSecurityGroup"
+						}
+					}
+				],
+				"VpcId": {
+					"Ref": "VPC"
+				}
+			}
+		},
+		"RDSInstance": {
+			"Type": "AWS::RDS::DBInstance",
+			"Properties": {
+				"AllocatedStorage": {
+					"Fn::FindInMap": [
+						"Config",
+						{
+							"Ref": "DatabaseType"
+						},
+						"AllocatedStorage"
+					]
+				},
+				"DBInstanceClass": {
+					"Fn::FindInMap": [
+						"Config",
+						"Settings",
+						"DatabaseSize"
+					]
+				},
+				"DBName": {
+					"Ref": "RDSDatabaseName"
+				},
+				"DBSubnetGroupName": {
+					"Ref": "DBSubnetGroup"
+				},
+				"Engine": {
+					"Fn::FindInMap": [
+						"Config",
+						{
+							"Ref": "DatabaseType"
+						},
+						"Engine"
+					]
+				},
+				"LicenseModel": {
+					"Fn::FindInMap": [
+						"Config",
+						{
+							"Ref": "DatabaseType"
+						},
+						"LicenseModel"
+					]
+				},
+				"MasterUsername": {
+					"Ref": "DatabaseUsername"
+				},
+				"MasterUserPassword": {
+					"Ref": "DatabasePassword"
+				},
+				"MultiAZ": true,
+				"Port": {
+					"Fn::FindInMap": [
+						"Config",
+						{
+							"Ref": "DatabaseType"
+						},
+						"Port"
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "Infa-DQ-RDS-Instance"
+					}
+				],
+				"VPCSecurityGroups": [
+					{
+						"Ref": "DBSecurityGroup"
+					}
+				]
+			}
+		},
+		"InstanceSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Enable RDP and within VPC traffic",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": {
+							"Ref": "RemoteAccessCIDR"
+						}
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "5000",
+						"ToPort": "7000",
+						"CidrIp": {
+							"Ref": "RemoteAccessCIDR"
+						}
+					}
+				]
+			}
+		},
+		"InstanceSecurityGroupIngress": {
+			"DependsOn": "InstanceSecurityGroup",
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"IpProtocol": "-1",
+				"FromPort": "-1",
+				"ToPort": "-1",
+				"SourceSecurityGroupId": {
+					"Fn::GetAtt": [
+						"InstanceSecurityGroup",
+						"GroupId"
+					]
+				},
+				"GroupId": {
+					"Fn::GetAtt": [
+						"InstanceSecurityGroup",
+						"GroupId"
+					]
+				}
+			}
+		},
+		"InfaMasterEIPAddress": {
+			"Type": "AWS::EC2::EIP",
+			"Condition": "EnableEIPCondition",
+			"Properties": {
+				"Domain": "vpc",
+				"InstanceId": {
+					"Ref": "InfaMaster"
+				}
+			}
+		},
+		"InfaMaster": {
+			"DependsOn": "RDSInstance",
+			"Type": "AWS::EC2::Instance",
+			"Metadata": {
+				"AWS::CloudFormation::Init": {
+					"configSets": {
+						"setupdomain": [
+							"config1"
+						],
+						"setupwithlicense": [
+							"config2",
+							"config1"
+						]
+					},
+					"config1": {
+						"commands": {
+							"1-setup": {
+								"command": {
+									"Fn::Join": [
+										"",
+										[
+											"powershell -F C:\\InfaEc2Scripts\\winInfaInstallerEc2.ps1 ",
+											{
+												"Ref": "InformaticaDomainPassword"
+											},
+											" ",
+											{
+												"Ref": "DatabasePassword"
+											},
+											" ",
+											{
+												"Ref": "DatabasePassword"
+											},
+											" ",
+											{
+												"Ref": "EncryptionKeyPhrase"
+											},
+											" ",
+											{
+												"Ref": "MRSDBUsername"
+											},
+											" ",
+											{
+												"Ref": "MRSDBPassword"
+											},
+											" ",
+											{
+												"Ref": "RefDataDBUsername"
+											},
+											" ",
+											{
+												"Ref": "RefDataDBPassword"
+											}
+										]
+									]
+								}
+							}
+						}
+					},
+					"config2": {
+						"files": {
+							"c:\\Informatica\\10.1.1\\License.key": {
+								"source": {
+									"Ref": "LicenseKey"
+								}
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": {
+							"Fn::Join": [
+								"",
+								[
+									{
+										"Ref": "InformaticaNodeName"
+									},
+									"Node1"
+								]
+							]
+						}
+					}
+				],
+				"ImageId": {
+					"Fn::FindInMap": [
+						"AWSAMIRegionMap",
+						{
+							"Ref": "AWS::Region"
+						},
+						"INFORMATICADQWINHVM"
+					]
+				},
+				"SubnetId": {
+					"Ref": "PublicSubnet1"
+				},
+				"SecurityGroupIds": [
+					{
+						"Ref": "InstanceSecurityGroup"
+					}
+				],
+				"InstanceType": {
+					"Ref": "DataQualityInstanceType"
+				},
+				"KeyName": {
+					"Ref": "KeyPairName"
+				},
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [
+							"",
+							[
+								"<powershell>\n",
+								"echo \"Initializing variables\" \n",
+								"$env:CREATE_DOMAIN=1 \n",
+								"$env:JOIN_DOMAIN=0 \n",
+								"$env:SERVES_AS_GATEWAY=0 \n",
+								"$env:DOMAIN_USER_NAME=\"",
+								{
+									"Ref": "InformaticaDomainUsername"
+								},
+								"\"\n",
+								"$env:AWS_REGION=\"",
+								{
+									"Ref": "AWS::Region"
+								},
+								"\"\n",
+								"$env:ADD_LICENSE_CONDITION=\"",
+								{
+									"Fn::If": [
+										"AddLicenseCondition",
+										"1",
+										"0"
+									]
+								},
+								"\"\n",
+								"$env:DB_TYPE=\"",
+								{
+									"Fn::FindInMap": [
+										"Config",
+										{
+											"Ref": "DatabaseType"
+										},
+										"DB"
+									]
+								},
+								"\"\n",
+								"$env:DB_ADDRESS=\"",
+								{
+									"Fn::GetAtt": [
+										"RDSInstance",
+										"Endpoint.Address"
+									]
+								},
+								"\"\n",
+								"$env:DB_PORT=\"",
+								{
+									"Fn::GetAtt": [
+										"RDSInstance",
+										"Endpoint.Port"
+									]
+								},
+								"\"\n",
+								"$env:DB_UNAME=\"",
+								{
+									"Ref": "DatabaseUsername"
+								},
+								"\"\n",
+								"$env:DB_SERVICENAME=\"",
+								{
+									"Ref": "RDSDatabaseName"
+								},
+								"\"\n",
+								"$env:DOMAIN_NAME=\"",
+								{
+									"Ref": "InformaticaDomainName"
+								},
+								"\"\n",
+								"$env:NODE_NAME=\"",
+								{
+									"Fn::Join": [
+										"",
+										[
+											{
+												"Ref": "InformaticaNodeName"
+											},
+											"Node1"
+										]
+									]
+								},
+								"\"\n",
+								"$env:GRID_NAME=\"",
+								{
+									"Fn::FindInMap": [
+										"Config",
+										"Settings",
+										"GridName"
+									]
+								},
+								"\"\n",
+								"$env:REPO_USER=\"",
+								{
+									"Ref": "DatabaseUsername"
+								},
+								"\"\n",
+								"$env:INFORMATICA_SERVICES=\"2",
+								"\"\n",
+								"$env:JOIN_NODE_NAME=\"Informatica_NotApplicable_NodeName\" \n",
+								"$env:DOMAIN_HOST_NAME=\"$env:COMPUTERNAME\" \n",
+								"echo \"running cfn init\" \n",
+								"cfn-init.exe -v -s ",
+								{
+									"Ref": "AWS::StackId"
+								},
+								" --configsets ",
+								{
+									"Fn::If": [
+										"AddLicenseCondition",
+										"setupwithlicense",
+										"setupdomain"
+									]
+								},
+								" --resource InfaMaster ",
+								" --region ",
+								{
+									"Ref": "AWS::Region"
+								},
+								"\n",
+								"echo \"running cfn signal\" \n",
+								"cfn-signal -e $LASTEXITCODE ",
+								" --stack ",
+								{
+									"Ref": "AWS::StackId"
+								},
+								" --resource InfaMaster ",
+								" --region ",
+								{
+									"Ref": "AWS::Region"
+								},
+								"\n",
+								"</powershell>"
+							]
+						]
+					}
+				}
+			},
+			"CreationPolicy": {
+				"ResourceSignal": {
+					"Timeout": "PT3H"
+				}
+			}
+		}
+	},
+	"Outputs": {
+		"DQAgentIP": {
+			"Value": {
+				"Fn::GetAtt": [
+					"InfaMaster",
+					"PublicIp"
+				]
+			},
+			"Description": "Elastic IP address of the Informatica Data Quality instance"
+		},
+		"InstanceID": {
+			"Description": "Instance ID of the newly created EC2 Master instance",
+			"Value": {
+				"Ref": "InfaMaster"
+			}
+		},
+		"AvailabilityZone": {
+			"Description": "Availability Zone of the newly created EC2 instances",
+			"Value": {
+				"Fn::GetAtt": [
+					"InfaMaster",
+					"AvailabilityZone"
+				]
+			}
+		},
+		"PublicDNS": {
+			"Description": "Public DNS name of the newly created EC2 Master instance",
+			"Value": {
+				"Fn::GetAtt": [
+					"InfaMaster",
+					"PublicDnsName"
+				]
+			}
+		},
+		"RDSInstance": {
+			"Value": {
+				"Ref": "RDSInstance"
+			},
+			"Description": "RDS Instance ID"
+		}
+	}
+}
